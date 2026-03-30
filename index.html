@@ -66,7 +66,7 @@ main{padding:28px 0 60px}
 .add-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:28px}
 .section-title{font-size:.7rem;font-family:'Space Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:16px;display:flex;align-items:center;gap:8px}
 .section-title::after{content:'';flex:1;height:1px;background:var(--border)}
-.form-row{display:grid;grid-template-columns:1fr 1.4fr 1fr .7fr 1fr auto;gap:12px;align-items:end;margin-bottom:12px}
+.form-row{display:grid;grid-template-columns:1fr 1.4fr 1fr .7fr 1fr 1fr auto;gap:12px;align-items:end;margin-bottom:12px}
 .form-row-b{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}
 @media(max-width:860px){.form-row{grid-template-columns:1fr 1fr}}
 @media(max-width:500px){.form-row{grid-template-columns:1fr}.form-row-b{grid-template-columns:1fr}}
@@ -151,6 +151,12 @@ input[type="date"].fi{color-scheme:dark}
 .div-panel{background:var(--bg3);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:10px 13px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .div-panel .pl{color:var(--divcolor);opacity:.85}
 .no-div{font-family:'Space Mono',monospace;font-size:.63rem;color:var(--muted);padding:7px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;text-align:center}
+
+/* LIMIT DATE */
+.limit-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tbadge.tb-expired{background:rgba(255,59,92,.15);color:var(--danger);border:1px solid rgba(255,59,92,.45);animation:pulse 1.4s infinite}
+.tbadge.tb-limit-ok{background:rgba(0,196,255,.08);color:var(--accent2);border:1px solid rgba(0,196,255,.25)}
+.limit-date-info{font-family:'Space Mono',monospace;font-size:.56rem;color:var(--muted)}
 
 .card-notes{font-size:.78rem;color:var(--muted);font-style:italic;line-height:1.5;border-left:2px solid var(--border);padding-left:10px}
 .card-links{display:flex;gap:8px}
@@ -409,6 +415,11 @@ input[type="date"].fi{color-scheme:dark}
         <label class="fl">Date Bought</label>
         <input class="fi" id="iDate" type="date">
       </div>
+      <!-- LIMIT DATE -->
+      <div class="fg">
+        <label class="fl">Limit Date (optional)</label>
+        <input class="fi" id="iLimitDate" type="date" title="Alert when this date is passed">
+      </div>
       <!-- ADD -->
       <div style="display:flex;align-items:flex-end">
         <button class="btn btn-accent" onclick="addStock()" style="width:100%;padding:10px 14px;font-size:.78rem">+ Add</button>
@@ -629,14 +640,15 @@ function addStock() {
   const shares = parseFloat(document.getElementById('iShares').value) || 1;
   const date   = document.getElementById('iDate').value;
   const notes  = document.getElementById('iNotes').value.trim();
+  const limitDate = document.getElementById('iLimitDate').value || null;
   if (!ticker) { toast('Enter or search a ticker','er'); return; }
   if (!name)   { toast('Company name required','er'); return; }
   if (isNaN(price)||price<=0) { toast('Enter a valid buy price','er'); return; }
   if (!date)   { toast('Select a buy date','er'); return; }
   stocks.unshift({ id: Date.now().toString(), name, ticker, priceBought: price,
-    shares, buyDate: date, notes, status:'wait', livePrice:null, priceData:null, checkedAt:null });
+    shares, buyDate: date, notes, limitDate, status:'wait', livePrice:null, priceData:null, checkedAt:null });
   save(); render(); updateSummary();
-  ['iTicker','iName','iPrice','iShares','iNotes'].forEach(id=>document.getElementById(id).value='');
+  ['iTicker','iName','iPrice','iShares','iNotes','iLimitDate'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('iDate').valueAsDate = new Date();
   toast(`${ticker} added!`,'ok');
 }
@@ -766,6 +778,21 @@ function cardHTML(s) {
     }
   }
 
+  // Limit date
+  let limitHTML = '';
+  if (s.limitDate) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const lim = new Date(s.limitDate + 'T00:00:00');
+    const expired = today > lim;
+    const daysOff = Math.round((today - lim) / 86400000);
+    if (expired) {
+      limitHTML = `<div class="limit-row"><span class="tbadge tb-expired">⏰ Limit Date Expired</span><span class="limit-date-info">${daysOff}d ago · ${fmtDate(s.limitDate)}</span></div>`;
+    } else {
+      const daysLeft = Math.round((lim - today) / 86400000);
+      limitHTML = `<div class="limit-row"><span class="tbadge tb-limit-ok">📅 Limit ${daysLeft === 0 ? 'Today' : 'in ' + daysLeft + 'd'}</span><span class="limit-date-info">${fmtDate(s.limitDate)}</span></div>`;
+    }
+  }
+
   // Dividend data not available from v8 without auth — omitted
   const divHTML = '';
 
@@ -789,6 +816,7 @@ function cardHTML(s) {
       ${extraRow}
     </div>
     ${taxHTML}
+    ${limitHTML}
     ${divHTML}
     ${s.notes?`<div class="card-notes">${esc(s.notes)}</div>`:''}
 
